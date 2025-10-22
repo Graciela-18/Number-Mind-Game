@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Number Mind — Interactive Game</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#8b5cf6;--muted:#94a3b8;--glass:rgba(255,255,255,0.03)}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{background:linear-gradient(180deg,#071025 0%, #071a2b 100%);color:#e6eef8;display:flex;align-items:center;justify-content:center;padding:24px}
+    .wrap{width:100%;max-width:900px}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:18px;box-shadow:0 6px 18px rgba(2,6,23,0.6);}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+    .controls{display:flex;gap:8px;align-items:center}
+    input[type="text"]{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:var(--glass);color:inherit;font-size:16px;width:160px}
+    button{background:var(--accent);border:none;padding:10px 12px;border-radius:8px;color:white;font-weight:600;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .meta{color:var(--muted);font-size:13px;margin-top:8px}
+    .log{max-height:420px;overflow:auto;padding:12px;border-radius:8px;margin-top:12px;background:rgba(0,0,0,0.2)}
+    .guess-row{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:8px;margin-bottom:8px;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));}
+    .pill{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:999px;font-weight:700}
+    .small{font-size:13px;color:var(--muted)}
+    .footer{margin-top:12px;display:flex;justify-content:space-between;align-items:center}
+    .hint{font-style:italic;color:var(--muted)}
+    .result{font-weight:700}
+    .comment{margin-top:12px;background:linear-gradient(90deg, rgba(139,92,246,0.12), rgba(139,92,246,0.04));padding:10px;border-radius:8px;color:#efe8ff}
+    .top-right{display:flex;gap:8px;align-items:center}
+    select{padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit}
+    @media (max-width:880px){.grid{grid-template-columns:1fr;}.card{padding:14px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>Number Mind — 3-digit Mastermind</h1>
+      <div class="top-right small">Adult-friendly version · Fun comments enabled</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <div class="small">Guess the secret <strong>3-digit</strong> number. Digits are <em>unique</em>. You get feedback as <strong>Bulls</strong> (right digit, right place) and <strong>Cows</strong> (right digit, wrong place).</div>
+            <div class="meta">Attempts allowed based on difficulty. Try to crack the code!</div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center">
+            <label class="small">Difficulty</label>
+            <select id="difficulty">
+              <option value="easy">Easy — 12 attempts</option>
+              <option value="normal" selected>Normal — 9 attempts</option>
+              <option value="hard">Hard — 6 attempts</option>
+            </select>
+            <button class="ghost" id="newGame">New Game</button>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">
+          <input id="guessInput" type="text" maxlength="3" placeholder="e.g. 749" />
+          <button id="guessBtn">Make Guess</button>
+          <button class="ghost" id="autoSolve">Reveal (cheat)</button>
+          <div class="small" id="attemptsLeft"></div>
+        </div>
+
+        <div class="comment" id="commentBox" style="display:none"></div>
+
+        <div class="log" id="log">
+          <!-- guess rows appear here -->
+        </div>
+
+        <div class="footer">
+          <div class="hint" id="hint">Tip: Start with numbers like 1-5-9 to test variety.</div>
+          <div class="result small" id="status"></div>
+        </div>
+      </div>
+
+      <div class="card" style="height:100%">
+        <h3 style="margin-top:0;margin-bottom:10px">Scoreboard & Rules</h3>
+        <div class="small">Rules</div>
+        <ul class="small" style="margin-top:8px">
+          <li>Secret number has <strong>3 distinct digits</strong> (0 allowed but not as leading? actually allowed anywhere).</li>
+          <li>Input exactly 3 digits. No letters or repeating digits.</li>
+          <li>Each guess shows: Bulls (correct digit+position) and Cows (correct digit wrong position).</li>
+        </ul>
+
+        <div style="margin-top:12px">
+          <div class="small"><strong>Scoring</strong></div>
+          <ol class="small" style="margin-top:6px">
+            <li>Win in 1–3 guesses: <strong>Legend</strong></li>
+            <li>Win in 4–6 guesses: <strong>Sharp</strong></li>
+            <li>Win in 7–9 guesses: <strong>Strategist</strong></li>
+            <li>Win later: <strong>Perseverant</strong></li>
+          </ol>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="small">Status</div>
+          <div id="secretReveal" class="pill" style="margin-top:8px">Secret: —</div>
+          <div class="small" style="margin-top:8px">Guesses made: <span id="guessesMade">0</span></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="small">Play hints</div>
+          <button class="ghost" id="hintDigit">Reveal 1 digit (costs 2 attempts)</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const guessInput = document.getElementById('guessInput');
+  const guessBtn = document.getElementById('guessBtn');
+  const log = document.getElementById('log');
+  const attemptsLeft = document.getElementById('attemptsLeft');
+  const status = document.getElementById('status');
+  const newGame = document.getElementById('newGame');
+  const difficulty = document.getElementById('difficulty');
+  const secretReveal = document.getElementById('secretReveal');
+  const guessesMade = document.getElementById('guessesMade');
+  const autoSolve = document.getElementById('autoSolve');
+  const commentBox = document.getElementById('commentBox');
+  const hintDigit = document.getElementById('hintDigit');
+
+  let secret = '';
+  let maxAttempts = 9;
+  let attempts = 0;
+  let gameOver = false;
+  let commentPool = [
+    "Not bad — but I expected a bolder move.",
+    "Close... like almost getting out of a boring date.",
+    "Oof. You're playing it safe. Live dangerously.",
+    "That guess had potential. Next time, aim sharper.",
+    "You're overthinking it. Or is that the plan?",
+    "Nice try. The number's laughing at you though.",
+    "Hotter... but not yet sizzling.",
+    "Cold as my last attempt at flirting.",
+    "Sharp move. Keep that energy.",
+    "You sneaky strategist, I like it."
+  ];
+
+  function randUnique3(){
+    const digits = '0123456789'.split('');
+    let pick = '';
+    while(pick.length<3){
+      const i = Math.floor(Math.random()*digits.length);
+      const d = digits.splice(i,1)[0];
+      pick += d;
+    }
+    // allow leading zero; it's still 3 digits
+    return pick;
+  }
+
+  function setDifficulty(){
+    const v = difficulty.value;
+    if(v==='easy') maxAttempts = 12;
+    else if(v==='normal') maxAttempts = 9;
+    else maxAttempts = 6;
+  }
+
+  function startNewGame(){
+    setDifficulty();
+    secret = randUnique3();
+    attempts = 0;
+    gameOver = false;
+    log.innerHTML = '';
+    secretReveal.textContent = 'Secret: —';
+    guessesMade.textContent = '0';
+    status.textContent = '';
+    attemptsLeft.textContent = `Attempts left: ${maxAttempts}`;
+    commentBox.style.display='none';
+    guessInput.value='';
+    guessInput.focus();
+    console.log('Secret is', secret);
+  }
+
+  function showComment(){
+    const c = commentPool[Math.floor(Math.random()*commentPool.length)];
+    commentBox.style.display='block';
+    commentBox.textContent = c;
+  }
+
+  function validateGuess(g){
+    if(!/^\d{3}$/.test(g)) return 'Enter exactly 3 digits.';
+    // no repeating digits
+    if(new Set(g.split('')).size !== 3) return 'Digits must be unique (no repeats).';
+    return null;
+  }
+
+  function evaluate(g){
+    let bulls = 0, cows = 0;
+    for(let i=0;i<3;i++){
+      if(g[i] === secret[i]) bulls++;
+      else if(secret.includes(g[i])) cows++;
+    }
+    return {bulls, cows};
+  }
+
+  function addLogRow(guess, bulls, cows){
+    const row = document.createElement('div');
+    row.className='guess-row';
+    row.innerHTML = `<div style="display:flex;gap:12px;align-items:center"><div class="pill">${guess}</div><div class="small">Bulls: <strong>${bulls}</strong> · Cows: <strong>${cows}</strong></div></div><div class="small">#${attempts}</div>`;
+    log.prepend(row);
+  }
+
+  function endGame(won){
+    gameOver = true;
+    if(won){
+      status.textContent = `You cracked it in ${attempts} guesses!`;
+      status.style.color = '#87f4b6';
+      secretReveal.textContent = `Secret: ${secret}`;
+      showComment();
+    } else {
+      status.textContent = `Out of attempts — secret was ${secret}`;
+      status.style.color = '#f49aa8';
+      secretReveal.textContent = `Secret: ${secret}`;
+      commentBox.style.display='block';
+      commentBox.textContent = "Not this time — but that's what makes it spicy. Try again.";
+    }
+  }
+
+  guessBtn.addEventListener('click', ()=>{
+    if(gameOver) return;
+    const g = guessInput.value.trim();
+    const err = validateGuess(g);
+    if(err){
+      alert(err);
+      return;
+    }
+    attempts++;
+    const {bulls,cows} = evaluate(g);
+    addLogRow(g,bulls,cows);
+    guessesMade.textContent = attempts;
+    attemptsLeft.textContent = `Attempts left: ${Math.max(0, maxAttempts-attempts)}`;
+
+    if(bulls===3){
+      endGame(true);
+      return;
+    }
+
+    if(attempts>=maxAttempts){
+      endGame(false);
+      return;
+    }
+
+    // show a playful comment occasionally
+    if(Math.random() < 0.6) showComment();
+    guessInput.value='';
+    guessInput.focus();
+  });
+
+  guessInput.addEventListener('keyup',(e)=>{
+    if(e.key==='Enter') guessBtn.click();
+  });
+
+  newGame.addEventListener('click', startNewGame);
+  difficulty.addEventListener('change', ()=>{
+    startNewGame();
+  });
+
+  autoSolve.addEventListener('click', ()=>{
+    if(confirm('Reveal secret? (This ends the game)')){
+      attempts = maxAttempts;
+      secretReveal.textContent = `Secret: ${secret}`;
+      endGame(false);
+    }
+  });
+
+  hintDigit.addEventListener('click', ()=>{
+    if(gameOver) return;
+    if(attempts+2 > maxAttempts){
+      alert('Not enough attempts left to buy a hint.');
+      return;
+    }
+    // reveal one random digit and cost 2 attempts
+    attempts += 2;
+    const i = Math.floor(Math.random()*3);
+    const reveal = Array.from(secret).map((d,idx)=> idx===i? d : '*').join('');
+    secretReveal.textContent = `Secret: ${reveal}`;
+    guessesMade.textContent = attempts;
+    attemptsLeft.textContent = `Attempts left: ${Math.max(0, maxAttempts-attempts)}`;
+    if(attempts>=maxAttempts) endGame(false);
+  });
+
+  // start first game
+  startNewGame();
+})();
+</script>
+</body>
+</html>
